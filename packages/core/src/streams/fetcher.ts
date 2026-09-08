@@ -1,3 +1,4 @@
+import pLimit from 'p-limit';
 import { Addon, ParsedStream, UserData } from '../db/schemas.js';
 import {
   constants,
@@ -5,6 +6,7 @@ import {
   getAddonName,
   getTimeTakenSincePoint,
 } from '../utils/index.js';
+import { config as appConfig } from '../config/index.js';
 import { Wrapper } from '../main/wrapper.js';
 import {
   ExitConditionEvaluator,
@@ -235,7 +237,17 @@ class StreamFetcher {
     // Helper function to fetch from a group of addons and track time
     const fetchAndProcessAddons = async (addons: Addon[]) => {
       const groupStart = Date.now();
-      const results = await Promise.all(addons.map(fetchFromAddon));
+      // Capped 2026-09-08: this used to be a bare Promise.all with no limit -
+      // every configured addon (and everything each of THOSE addons fans
+      // out to internally) fired simultaneously on every single stream
+      // request, with no throttling for overlapping requests from rapid
+      // searches either. That was the direct mechanical cause of IO
+      // errors/timeouts on the downstream addons when searching several
+      // titles quickly. See resourcesSchema.fetch.addonConcurrency.
+      const addonFetchLimit = pLimit(appConfig.resources.fetch.addonConcurrency);
+      const results = await Promise.all(
+        addons.map((addon) => addonFetchLimit(() => fetchFromAddon(addon)))
+      );
 
       const groupStreams = results.flatMap((r) => r.streams);
       const groupErrors = results.flatMap((r) => r.errors);

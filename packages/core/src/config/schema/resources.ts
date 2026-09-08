@@ -187,6 +187,18 @@ export const resourcesSchema = {
       secret: false,
     },
   },
+  fetch: {
+    addonConcurrency: {
+      schema: positiveInt,
+      default: 4,
+      label: 'Max concurrent addon fetches per stream request',
+      description:
+        'Caps how many configured addons are queried in parallel for a single stream request (unbounded before this setting existed - every configured addon was fired via Promise.all with no limit at all). This only throttles fan-out per request; it does not queue or delay separate concurrent requests from different searches. Raise if you have many low-latency addons and want maximum parallelism; lower if rapid/overlapping searches were causing timeouts or errors in downstream addons.',
+      env: 'MAX_CONCURRENT_ADDON_FETCHES',
+      requiresRestart: false,
+      secret: false,
+    },
+  },
   cache: {
     defaultMaxSize: {
       schema: positiveInt,
