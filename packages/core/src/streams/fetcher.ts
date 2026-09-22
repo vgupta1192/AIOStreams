@@ -22,6 +22,7 @@ import {
   type AnalyticsErrorKind,
   type AnalyticsStatus,
 } from '../analytics/index.js';
+import { resolveRemuxDbMediaInfo } from '../remuxdb/wrap.js';
 
 /**
  * Per-addon outcome tracked through {@link StreamFetcher.fetch} and surfaced
@@ -78,6 +79,8 @@ class StreamFetcher {
     }[];
     /** Per-addon outcome map used by per-user analytics. */
     dispositions: AddonDispositionMap;
+    /** Summed across addon groups. */
+    remuxDbMs: number;
   }> {
     const { type, id, queryType } = context;
 
@@ -92,6 +95,7 @@ class StreamFetcher {
       description: string;
     }[] = [];
     let allStreams: ParsedStream[] = [];
+    let remuxDbMs = 0;
     const start = Date.now();
 
     // Seed every input addon with `not_started` so anything filtered out (or
@@ -258,6 +262,10 @@ class StreamFetcher {
       // Run SeaDex precompute BEFORE filter so seadex() works in Included SEL
       // Now uses context's cached SeaDex data when available
       await this.precompute.precomputeSeaDexOnly(groupStreams, context);
+
+      const remuxDbStart = Date.now();
+      await resolveRemuxDbMediaInfo(groupStreams, context, this.userData);
+      remuxDbMs += Date.now() - remuxDbStart;
 
       // Blocklist runs before dedup so a flagged candidate never survives
       // as a failover variant harvested from discarded duplicates.
@@ -693,6 +701,7 @@ class StreamFetcher {
       errors: allErrors,
       statistics: allStatisticStreams,
       dispositions,
+      remuxDbMs,
     };
   }
 }
